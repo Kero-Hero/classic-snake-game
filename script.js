@@ -13,6 +13,8 @@ class SnakeGame {
         this.speedLevel = 1;
         this.gameSpeed = 200;
         this.soundEnabled = true;
+        this.currentMap = 'classic';
+        this.obstacles = [];
         
         // 蛇的初始状态
         this.snake = [
@@ -31,6 +33,7 @@ class SnakeGame {
         this.initializeElements();
         this.setupEventListeners();
         this.updateDisplay();
+        this.initializeMap();
         this.draw();
         
         // 创建音效
@@ -52,7 +55,9 @@ class SnakeGame {
             newRecord: document.getElementById('new-record'),
             restartBtn: document.getElementById('restart-btn'),
             difficulty: document.getElementById('difficulty'),
-            soundToggle: document.getElementById('sound-toggle')
+            soundToggle: document.getElementById('sound-toggle'),
+            mapSelect: document.getElementById('map-select'),
+            slowBtn: document.getElementById('slow-btn')
         };
     }
     
@@ -97,6 +102,16 @@ class SnakeGame {
         // 音效切换
         this.elements.soundToggle.addEventListener('click', () => {
             this.toggleSound();
+        });
+        
+        // 地图选择
+        this.elements.mapSelect.addEventListener('change', (e) => {
+            this.setMap(e.target.value);
+        });
+        
+        // 减速按钮
+        this.elements.slowBtn.addEventListener('click', () => {
+            this.slowDown();
         });
         
         // 触摸事件（移动端支持）
@@ -197,6 +212,9 @@ class SnakeGame {
                     this.startGame();
                 }
                 break;
+            case 'KeyL':
+                this.slowDown();
+                break;
         }
     }
     
@@ -244,6 +262,78 @@ class SnakeGame {
         }
     }
     
+    setMap(mapType) {
+        this.currentMap = mapType;
+        this.initializeMap();
+        this.food = this.generateFood();
+        this.draw();
+    }
+    
+    initializeMap() {
+        this.obstacles = [];
+        
+        switch (this.currentMap) {
+            case 'maze':
+                // 迷宫地图 - 添加一些墙壁
+                this.obstacles = [
+                    // 上方障碍
+                    {x: 5, y: 5}, {x: 6, y: 5}, {x: 7, y: 5}, {x: 8, y: 5},
+                    {x: 12, y: 5}, {x: 13, y: 5}, {x: 14, y: 5},
+                    // 左侧障碍
+                    {x: 3, y: 8}, {x: 3, y: 9}, {x: 3, y: 10}, {x: 3, y: 11},
+                    // 右侧障碍
+                    {x: 16, y: 8}, {x: 16, y: 9}, {x: 16, y: 10}, {x: 16, y: 11},
+                    // 下方障碍
+                    {x: 6, y: 14}, {x: 7, y: 14}, {x: 8, y: 14}, {x: 9, y: 14},
+                    {x: 11, y: 14}, {x: 12, y: 14}, {x: 13, y: 14},
+                    // 中央障碍
+                    {x: 9, y: 9}, {x: 10, y: 9}, {x: 9, y: 10}, {x: 10, y: 10}
+                ];
+                break;
+            case 'cross':
+                // 十字地图 - 创建十字形通道
+                for (let i = 0; i < this.tileCount; i++) {
+                    for (let j = 0; j < this.tileCount; j++) {
+                        // 只留下十字形区域
+                        if (!(i >= 8 && i <= 11) && !(j >= 8 && j <= 11)) {
+                            this.obstacles.push({x: i, y: j});
+                        }
+                    }
+                }
+                break;
+            case 'border':
+                // 边框地图 - 添加内边框
+                for (let i = 4; i < this.tileCount - 4; i++) {
+                    this.obstacles.push({x: i, y: 4});      // 上边框
+                    this.obstacles.push({x: i, y: this.tileCount - 5}); // 下边框
+                }
+                for (let j = 4; j < this.tileCount - 4; j++) {
+                    this.obstacles.push({x: 4, y: j});      // 左边框
+                    this.obstacles.push({x: this.tileCount - 5, y: j}); // 右边框
+                }
+                break;
+            default:
+                // 经典地图 - 无障碍
+                this.obstacles = [];
+                break;
+        }
+    }
+    
+    slowDown() {
+        if (this.gameState !== 'running') return;
+        
+        // 增加蛇身长度（不移除尾部）
+        const tail = {...this.snake[this.snake.length - 1]};
+        this.snake.push(tail);
+        
+        // 减速
+        this.gameSpeed = Math.min(300, this.gameSpeed + 20);
+        this.restartGameLoop();
+        
+        // 播放减速音效
+        this.playSound(300, 150);
+    }
+    
     startGame() {
         if (this.gameState === 'paused') {
             this.resumeGame();
@@ -259,6 +349,9 @@ class SnakeGame {
         this.snake = [{ x: 10, y: 10 }];
         this.direction = { x: 0, y: 0 };
         this.nextDirection = { x: 0, y: 0 };
+        
+        // 初始化地图
+        this.initializeMap();
         
         // 生成新食物
         this.food = this.generateFood();
@@ -319,6 +412,9 @@ class SnakeGame {
         this.snake = [{ x: 10, y: 10 }];
         this.direction = { x: 0, y: 0 };
         this.nextDirection = { x: 0, y: 0 };
+        
+        // 初始化地图
+        this.initializeMap();
         
         // 生成新食物
         this.food = this.generateFood();
@@ -399,9 +495,24 @@ class SnakeGame {
         head.x += this.direction.x;
         head.y += this.direction.y;
         
-        // 检查边界碰撞
-        if (head.x < 0 || head.x >= this.tileCount || 
-            head.y < 0 || head.y >= this.tileCount) {
+        // 检查边界碰撞 - 如果没有障碍物则可以穿过边界
+        if (this.currentMap === 'classic') {
+            // 经典模式：可以穿过边界
+            if (head.x < 0) head.x = this.tileCount - 1;
+            if (head.x >= this.tileCount) head.x = 0;
+            if (head.y < 0) head.y = this.tileCount - 1;
+            if (head.y >= this.tileCount) head.y = 0;
+        } else {
+            // 有障碍物的地图：撞边界就游戏结束
+            if (head.x < 0 || head.x >= this.tileCount || 
+                head.y < 0 || head.y >= this.tileCount) {
+                this.gameOver();
+                return;
+            }
+        }
+        
+        // 检查障碍物碰撞
+        if (this.obstacles.some(obstacle => obstacle.x === head.x && obstacle.y === head.y)) {
             this.gameOver();
             return;
         }
@@ -445,7 +556,10 @@ class SnakeGame {
                 x: Math.floor(Math.random() * this.tileCount),
                 y: Math.floor(Math.random() * this.tileCount)
             };
-        } while (this.snake.some(segment => segment.x === food.x && segment.y === food.y));
+        } while (
+            this.snake.some(segment => segment.x === food.x && segment.y === food.y) ||
+            this.obstacles.some(obstacle => obstacle.x === food.x && obstacle.y === food.y)
+        );
         
         return food;
     }
@@ -457,6 +571,9 @@ class SnakeGame {
         
         // 绘制网格（可选）
         this.drawGrid();
+        
+        // 绘制障碍物
+        this.drawObstacles();
         
         // 绘制食物
         this.drawFood();
@@ -484,6 +601,25 @@ class SnakeGame {
             this.ctx.lineTo(this.canvas.width, pos);
             this.ctx.stroke();
         }
+    }
+    
+    drawObstacles() {
+        this.obstacles.forEach(obstacle => {
+            const x = obstacle.x * this.gridSize;
+            const y = obstacle.y * this.gridSize;
+            
+            // 障碍物阴影
+            this.ctx.fillStyle = 'rgba(120, 120, 120, 0.3)';
+            this.ctx.fillRect(x + 2, y + 2, this.gridSize - 4, this.gridSize - 4);
+            
+            // 障碍物主体
+            this.ctx.fillStyle = '#666666';
+            this.ctx.fillRect(x + 1, y + 1, this.gridSize - 2, this.gridSize - 2);
+            
+            // 障碍物高光
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            this.ctx.fillRect(x + 3, y + 3, this.gridSize - 8, this.gridSize - 8);
+        });
     }
     
     drawFood() {

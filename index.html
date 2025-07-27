@@ -84,19 +84,34 @@
                                     <kbd>Space</kbd>
                                     <span>暂停</span>
                                 </div>
+                                <div class="key-item">
+                                    <kbd>L</kbd>
+                                    <span>减速增长</span>
+                                </div>
                             </div>
                         </div>
 
                         <div class="mobile-controls">
                             <h4>触摸控制:</h4>
-                            <div class="direction-pad">
-                                <button class="dir-btn" data-direction="up">↑</button>
+                            <div class="direction-pad cross-layout">
+                                <div class="dir-row">
+                                    <div class="empty-cell"></div>
+                                    <button class="dir-btn" data-direction="up">↑</button>
+                                    <div class="empty-cell"></div>
+                                </div>
                                 <div class="dir-row">
                                     <button class="dir-btn" data-direction="left">←</button>
                                     <button class="dir-btn center">🐍</button>
                                     <button class="dir-btn" data-direction="right">→</button>
                                 </div>
-                                <button class="dir-btn" data-direction="down">↓</button>
+                                <div class="dir-row">
+                                    <div class="empty-cell"></div>
+                                    <button class="dir-btn" data-direction="down">↓</button>
+                                    <div class="empty-cell"></div>
+                                </div>
+                                <div class="special-controls">
+                                    <button id="slow-btn" class="special-btn">L减速</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -105,6 +120,15 @@
                 <div class="control-section">
                     <h3>游戏设置</h3>
                     <div class="settings">
+                        <div class="setting-item">
+                            <label for="map-select">地图:</label>
+                            <select id="map-select" class="setting-select">
+                                <option value="classic" selected>经典</option>
+                                <option value="maze">迷宫</option>
+                                <option value="cross">十字</option>
+                                <option value="border">边框</option>
+                            </select>
+                        </div>
                         <div class="setting-item">
                             <label for="difficulty">难度:</label>
                             <select id="difficulty" class="setting-select">

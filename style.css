@@ -303,16 +303,29 @@ kbd {
 .direction-pad {
     display: grid;
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
     gap: 5px;
-    max-width: 120px;
+    max-width: 150px;
     margin: 0 auto;
+}
+
+/* 十字形布局 */
+.direction-pad.cross-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
 }
 
 .dir-row {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 5px;
+    align-items: center;
+}
+
+.empty-cell {
+    width: 35px;
+    height: 35px;
 }
 
 .dir-btn {
@@ -344,6 +357,36 @@ kbd {
     background: var(--primary-color);
     color: white;
     cursor: default;
+}
+
+/* 特殊控制按钮 */
+.special-controls {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+}
+
+.special-btn {
+    padding: 8px 16px;
+    border: 2px solid var(--warning-color);
+    background: white;
+    color: var(--warning-color);
+    border-radius: 6px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+}
+
+.special-btn:hover {
+    background: var(--warning-color);
+    color: white;
+    transform: scale(1.05);
+}
+
+.special-btn:active {
+    transform: scale(0.95);
 }
 
 /* 游戏设置 */
