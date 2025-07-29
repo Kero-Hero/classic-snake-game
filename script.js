@@ -26,6 +26,13 @@ class SnakeGame {
         // 食物
         this.food = this.generateFood();
         
+        // 奖励球系统
+        this.bonusFood = null;
+        this.bonusTimer = 0;
+        this.bonusDuration = 5000; // 5秒
+        this.bonusSpawnInterval = 5; // 每吃5个球生成一个奖励球
+        this.foodEaten = 0;
+        
         // 游戏循环
         this.gameLoop = null;
         
@@ -57,7 +64,9 @@ class SnakeGame {
             difficulty: document.getElementById('difficulty'),
             soundToggle: document.getElementById('sound-toggle'),
             mapSelect: document.getElementById('map-select'),
-            slowBtn: document.getElementById('slow-btn')
+            slowBtn: document.getElementById('slow-btn'),
+            bonusTimerDisplay: document.getElementById('bonus-timer-display'),
+            bonusTimer: document.getElementById('bonus-timer')
         };
     }
     
@@ -291,25 +300,149 @@ class SnakeGame {
                 ];
                 break;
             case 'cross':
-                // 十字地图 - 创建十字形通道
+                // 十字地图 - 创建十字形通道（移除四个角的7*7障碍物，只留一层十字障碍物）
                 for (let i = 0; i < this.tileCount; i++) {
                     for (let j = 0; j < this.tileCount; j++) {
-                        // 只留下十字形区域
-                        if (!(i >= 8 && i <= 11) && !(j >= 8 && j <= 11)) {
+                        // 只留下十字形区域，移除四个角的7*7区域
+                        const inVerticalCorridor = (i >= 8 && i <= 11);
+                        const inHorizontalCorridor = (j >= 8 && j <= 11);
+                        const inTopLeftCorner = (i < 7 && j < 7);
+                        const inTopRightCorner = (i > 12 && j < 7);
+                        const inBottomLeftCorner = (i < 7 && j > 12);
+                        const inBottomRightCorner = (i > 12 && j > 12);
+                        
+                        // 如果不在十字通道中，且不在角落的7*7区域中，则设为障碍物
+                        if (!inVerticalCorridor && !inHorizontalCorridor && 
+                            !inTopLeftCorner && !inTopRightCorner && 
+                            !inBottomLeftCorner && !inBottomRightCorner) {
                             this.obstacles.push({x: i, y: j});
                         }
                     }
                 }
                 break;
             case 'border':
-                // 边框地图 - 添加内边框
-                for (let i = 4; i < this.tileCount - 4; i++) {
-                    this.obstacles.push({x: i, y: 4});      // 上边框
-                    this.obstacles.push({x: i, y: this.tileCount - 5}); // 下边框
+                // 边框地图 - 把边框放在地图的边界
+                for (let i = 0; i < this.tileCount; i++) {
+                    this.obstacles.push({x: i, y: 0});      // 上边框
+                    this.obstacles.push({x: i, y: this.tileCount - 1}); // 下边框
                 }
-                for (let j = 4; j < this.tileCount - 4; j++) {
-                    this.obstacles.push({x: 4, y: j});      // 左边框
-                    this.obstacles.push({x: this.tileCount - 5, y: j}); // 右边框
+                for (let j = 1; j < this.tileCount - 1; j++) {
+                    this.obstacles.push({x: 0, y: j});      // 左边框
+                    this.obstacles.push({x: this.tileCount - 1, y: j}); // 右边框
+                }
+                break;
+            case 'spiral':
+                // 螺旋地图 - 创建螺旋形状的障碍物
+                const centerX = Math.floor(this.tileCount / 2);
+                const centerY = Math.floor(this.tileCount / 2);
+                for (let radius = 2; radius < 7; radius++) {
+                    // 外圈
+                    for (let j = centerX - radius; j <= centerX + radius; j++) {
+                        if (j >= 0 && j < this.tileCount) {
+                            if (centerY - radius >= 0) this.obstacles.push({x: j, y: centerY - radius});
+                            if (centerY + radius < this.tileCount) this.obstacles.push({x: j, y: centerY + radius});
+                        }
+                    }
+                    for (let j = centerY - radius + 1; j < centerY + radius; j++) {
+                        if (j >= 0 && j < this.tileCount) {
+                            if (centerX - radius >= 0) this.obstacles.push({x: centerX - radius, y: j});
+                            if (centerX + radius < this.tileCount) this.obstacles.push({x: centerX + radius, y: j});
+                        }
+                    }
+                    // 创建螺旋通道的间隙
+                    if (radius % 2 === 0 && centerX + radius < this.tileCount && centerY - radius + 1 >= 0) {
+                        this.obstacles = this.obstacles.filter(obs => 
+                            !(obs.x === centerX + radius && obs.y === centerY - radius + 1)
+                        );
+                    }
+                }
+                break;
+            case 'diamond':
+                // 钻石地图 - 创建菱形障碍物
+                const midPoint = Math.floor(this.tileCount / 2);
+                for (let i = 0; i < this.tileCount; i++) {
+                    for (let j = 0; j < this.tileCount; j++) {
+                        const distanceFromCenter = Math.abs(i - midPoint) + Math.abs(j - midPoint);
+                        // 创建菱形边界，但留出通道
+                        if (distanceFromCenter >= 6 && distanceFromCenter <= 7) {
+                            this.obstacles.push({x: i, y: j});
+                        }
+                        // 添加内部小菱形
+                        if (distanceFromCenter >= 2 && distanceFromCenter <= 3) {
+                            this.obstacles.push({x: i, y: j});
+                        }
+                    }
+                }
+                break;
+            case 'tunnel':
+                // 隧道地图 - 创建多个隧道
+                for (let i = 0; i < this.tileCount; i++) {
+                    // 水平隧道
+                    if (i < 4 || i > 15) {
+                        for (let j = 6; j < 14; j++) {
+                            this.obstacles.push({x: i, y: j});
+                        }
+                    }
+                    // 垂直隧道
+                    if (i >= 6 && i <= 13) {
+                        for (let j = 0; j < 4; j++) {
+                            this.obstacles.push({x: i, y: j});
+                        }
+                        for (let j = 16; j < this.tileCount; j++) {
+                            this.obstacles.push({x: i, y: j});
+                        }
+                    }
+                }
+                break;
+            case 'rooms':
+                // 房间地图 - 创建几个房间，用门连接
+                // 左上房间
+                for (let i = 2; i <= 8; i++) {
+                    this.obstacles.push({x: i, y: 2});
+                    this.obstacles.push({x: i, y: 8});
+                }
+                for (let j = 2; j <= 8; j++) {
+                    if (j !== 5) { // 留门
+                        this.obstacles.push({x: 2, y: j});
+                        this.obstacles.push({x: 8, y: j});
+                    }
+                }
+                
+                // 右下房间
+                for (let i = 11; i <= 17; i++) {
+                    this.obstacles.push({x: i, y: 11});
+                    this.obstacles.push({x: i, y: 17});
+                }
+                for (let j = 11; j <= 17; j++) {
+                    if (j !== 14) { // 留门
+                        this.obstacles.push({x: 11, y: j});
+                        this.obstacles.push({x: 17, y: j});
+                    }
+                }
+                
+                // 中央连接通道
+                for (let i = 9; i <= 10; i++) {
+                    for (let j = 9; j <= 10; j++) {
+                        // 中央连接区域保持空白
+                    }
+                }
+                break;
+            case 'snake':
+                // 蛇形地图 - 创建蛇形图案的障碍物
+                for (let i = 0; i < this.tileCount; i++) {
+                    // 创建蛇形图案
+                    const waveHeight = Math.floor(4 * Math.sin(i * 0.4)) + Math.floor(this.tileCount / 2);
+                    for (let j = 0; j < this.tileCount; j++) {
+                        // 上方波浪
+                        if (Math.abs(j - (waveHeight - 2)) <= 1 && waveHeight - 2 >= 0) {
+                            this.obstacles.push({x: i, y: j});
+                        }
+                        // 下方反向波浪
+                        const invWaveHeight = this.tileCount - 1 - (Math.floor(4 * Math.sin((i + 8) * 0.4)) + Math.floor(this.tileCount / 2 - 4));
+                        if (Math.abs(j - (invWaveHeight + 2)) <= 1 && invWaveHeight + 2 < this.tileCount) {
+                            this.obstacles.push({x: i, y: j});
+                        }
+                    }
                 }
                 break;
             default:
@@ -349,6 +482,12 @@ class SnakeGame {
         this.snake = [{ x: 10, y: 10 }];
         this.direction = { x: 0, y: 0 };
         this.nextDirection = { x: 0, y: 0 };
+        
+        // 重置奖励球系统
+        this.bonusFood = null;
+        this.bonusTimer = 0;
+        this.foodEaten = 0;
+        this.elements.bonusTimerDisplay.style.display = 'none';
         
         // 初始化地图
         this.initializeMap();
@@ -412,6 +551,12 @@ class SnakeGame {
         this.snake = [{ x: 10, y: 10 }];
         this.direction = { x: 0, y: 0 };
         this.nextDirection = { x: 0, y: 0 };
+        
+        // 重置奖励球系统
+        this.bonusFood = null;
+        this.bonusTimer = 0;
+        this.foodEaten = 0;
+        this.elements.bonusTimerDisplay.style.display = 'none';
         
         // 初始化地图
         this.initializeMap();
@@ -484,6 +629,9 @@ class SnakeGame {
     update() {
         if (this.gameState !== 'running') return;
         
+        // 更新奖励球
+        this.updateBonusFood();
+        
         // 更新方向
         this.direction = { ...this.nextDirection };
         
@@ -526,10 +674,33 @@ class SnakeGame {
         // 添加新头部
         this.snake.unshift(head);
         
-        // 检查是否吃到食物
-        if (head.x === this.food.x && head.y === this.food.y) {
+        // 检查是否吃到奖励球
+        if (this.bonusFood && head.x === this.bonusFood.x && head.y === this.bonusFood.y) {
+            const remainingSeconds = Math.ceil(this.bonusTimer / 1000);
+            const bonusScore = 10 * remainingSeconds; // 基础分10分乘以剩余时间（秒）
+            this.score += bonusScore;
+            
+            // 显示奖励信息（可以考虑添加到UI中）
+            console.log(`奖励球！获得 ${bonusScore} 分！(剩余时间: ${remainingSeconds}秒)`);
+            
+            this.bonusFood = null;
+            this.elements.bonusTimerDisplay.style.display = 'none';
+            
+            this.updateDisplay();
+            
+            // 播放奖励球被吃音效
+            this.playSound(1320, 200); // E6
+        }
+        // 检查是否吃到普通食物
+        else if (head.x === this.food.x && head.y === this.food.y) {
             this.score += 10;
+            this.foodEaten++;
             this.food = this.generateFood();
+            
+            // 检查是否需要生成奖励球
+            if (this.foodEaten % this.bonusSpawnInterval === 0 && !this.bonusFood) {
+                this.spawnBonusFood();
+            }
             
             // 增加速度
             this.speedLevel = Math.floor(this.score / 50) + 1;
@@ -558,10 +729,53 @@ class SnakeGame {
             };
         } while (
             this.snake.some(segment => segment.x === food.x && segment.y === food.y) ||
-            this.obstacles.some(obstacle => obstacle.x === food.x && obstacle.y === food.y)
+            this.obstacles.some(obstacle => obstacle.x === food.x && obstacle.y === food.y) ||
+            (this.bonusFood && this.bonusFood.x === food.x && this.bonusFood.y === food.y)
         );
         
         return food;
+    }
+    
+    generateBonusFood() {
+        let bonusFood;
+        do {
+            bonusFood = {
+                x: Math.floor(Math.random() * this.tileCount),
+                y: Math.floor(Math.random() * this.tileCount)
+            };
+        } while (
+            this.snake.some(segment => segment.x === bonusFood.x && segment.y === bonusFood.y) ||
+            this.obstacles.some(obstacle => obstacle.x === bonusFood.x && obstacle.y === bonusFood.y) ||
+            (this.food.x === bonusFood.x && this.food.y === bonusFood.y)
+        );
+        
+        return bonusFood;
+    }
+    
+    spawnBonusFood() {
+        this.bonusFood = this.generateBonusFood();
+        this.bonusTimer = this.bonusDuration;
+        this.elements.bonusTimerDisplay.style.display = 'block';
+        
+        // 播放奖励球出现音效
+        this.playSound(880, 200); // A5
+    }
+    
+    updateBonusFood() {
+        if (this.bonusFood) {
+            this.bonusTimer -= this.gameSpeed;
+            if (this.bonusTimer <= 0) {
+                this.bonusFood = null;
+                this.elements.bonusTimerDisplay.style.display = 'none';
+                
+                // 播放奖励球消失音效
+                this.playSound(220, 150); // A3
+            } else {
+                // 更新显示倒计时（向上取整到秒）
+                const remainingSeconds = Math.ceil(this.bonusTimer / 1000);
+                this.elements.bonusTimer.textContent = remainingSeconds;
+            }
+        }
     }
     
     draw() {
@@ -577,6 +791,11 @@ class SnakeGame {
         
         // 绘制食物
         this.drawFood();
+        
+        // 绘制奖励球
+        if (this.bonusFood) {
+            this.drawBonusFood();
+        }
         
         // 绘制蛇
         this.drawSnake();
@@ -637,6 +856,38 @@ class SnakeGame {
         // 添加高光效果
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         this.ctx.fillRect(x + 5, y + 5, 4, 4);
+    }
+    
+    drawBonusFood() {
+        const x = this.bonusFood.x * this.gridSize;
+        const y = this.bonusFood.y * this.gridSize;
+        
+        // 计算闪烁效果
+        const time = Date.now();
+        const pulseOpacity = 0.7 + 0.3 * Math.sin(time * 0.01);
+        
+        // 绘制奖励球外圈（金色光环）
+        this.ctx.fillStyle = `rgba(255, 215, 0, ${pulseOpacity * 0.5})`;
+        this.ctx.fillRect(x, y, this.gridSize, this.gridSize);
+        
+        // 绘制奖励球阴影
+        this.ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
+        this.ctx.fillRect(x + 2, y + 2, this.gridSize - 4, this.gridSize - 4);
+        
+        // 绘制奖励球主体（金色）
+        this.ctx.fillStyle = `rgba(255, 215, 0, ${pulseOpacity})`;
+        this.ctx.fillRect(x + 3, y + 3, this.gridSize - 6, this.gridSize - 6);
+        
+        // 添加白色高光效果
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        this.ctx.fillRect(x + 5, y + 5, 4, 4);
+        
+        // 添加星星效果
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        const centerX = x + this.gridSize / 2;
+        const centerY = y + this.gridSize / 2;
+        this.ctx.fillRect(centerX - 1, centerY - 3, 2, 6);
+        this.ctx.fillRect(centerX - 3, centerY - 1, 6, 2);
     }
     
     drawSnake() {
@@ -723,5 +974,15 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('🐍 贪吃蛇游戏已启动！');
     console.log('使用方向键或点击方向按钮控制蛇的移动');
     console.log('按空格键暂停/继续游戏');
+    console.log('🌟 新功能：');
+    console.log('- 奖励球系统：每吃5个食物出现金色奖励球');
+    console.log('- 更多地图选择：螺旋、钻石、隧道、房间、蛇形');
+    console.log('- 优化的十字和边框地图');
     console.log('尽情享受游戏吧！');
+    
+    // 调试功能：快速测试奖励球
+    window.testBonusFood = () => {
+        game.foodEaten = 4; // 设置为4，下一个食物会触发奖励球
+        console.log('下一个食物将触发奖励球！');
+    };
 });

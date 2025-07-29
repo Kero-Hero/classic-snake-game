@@ -97,6 +97,22 @@ body {
     text-align: center;
 }
 
+/* 奖励球倒计时特殊样式 */
+#bonus-timer-display {
+    animation: bonusPulse 1s ease-in-out infinite alternate;
+}
+
+#bonus-timer {
+    background: linear-gradient(45deg, #ffd700, #ffed4e);
+    color: #2c3e50;
+    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+}
+
+@keyframes bonusPulse {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.05); }
+}
+
 /* 游戏主体 */
 .game-main {
     display: grid;
